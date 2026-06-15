@@ -1,0 +1,5 @@
+\section{Conclusion}
+
+In this paper, we introduced \methodname (\textsc{SSA}), a novel activation module that brings the categorical sampling of the final softmax layer into the intermediate representations of a neural network. We demonstrated that while deep stacks of competitive activations suffer from severe signal attenuation, a selective hybrid approach can achieve performance comparable to standard deterministic baselines. Our findings highlight the importance of continuous relaxation (Gumbel-Softmax) and the trade-offs between independent feature representation and categorical competition.
+
+Future work will focus on temperature annealing schedules to bridge the gap between soft and hard sampling, as well as exploring \methodname as an additive component in residual networks. We also believe that \methodname may find applications in sparse attention mechanisms and interpretable feature selection, where a probabilistic bottleneck can provide valuable insights into the model's internal decision-making process.

@@ -1,0 +1,28 @@
+\section{Methodology}
+
+\para{Softmax Sampling Activation (\textsc{SSA})}
+Let $\vx \in \sR^C$ be the input vector to the activation module (e.g., the output of a convolutional layer with $C$ channels at a specific spatial location). In a standard network, an element-wise function $f$ is applied such that $\vy_i = f(\vx_i)$. In contrast, \methodname treats $\vx$ as a vector of logits and defines a categorical distribution over the $C$ channels.
+
+The probability of selecting channel $j$ is given by the softmax function:
+\begin{equation}
+    P(j | \vx) = \frac{\exp(\vx_j / \tau)}{\sum_{k=1}^C \exp(\vx_k / \tau)}
+\end{equation}
+where $\tau$ is a temperature parameter that controls the smoothness of the distribution. As $\tau \to 0$, the distribution approaches a one-hot vector at the maximum logit, and as $\tau \to \infty$, it approaches a uniform distribution.
+
+\para{Differentiable Sampling with Gumbel-Softmax}
+To train a network with categorical sampling, we use the Gumbel-Softmax reparameterization trick \cite{gumbel1998}. We sample a vector of i.i.d. Gumbel noise $\vg$ where $\vg_i = -\log(-\log(u_i))$ and $u_i \sim \text{Uniform}(0, 1)$. The "soft" sample $\vs$ is computed as:
+\begin{equation}
+    \vs_j = \frac{\exp((\vx_j + \vg_j) / \tau)}{\sum_{k=1}^C \exp((\vx_k + \vg_k) / \tau)}
+\end{equation}
+The output of the \methodname module is then the element-wise product of the soft sample and the original activations: $\vy = \vs \odot \vx$. In the "hard" variant of \methodname, we use the Straight-Through Estimator to perform discrete sampling in the forward pass while using the soft gradient in the backward pass.
+
+\para{Architectural Variants}
+We evaluate three primary configurations of \methodname:
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item {\bf Pure \textsc{SSA}}: Every ReLU in the network is replaced by an \methodname module.
+    \item {\bf Mixed \textsc{SSA}}: Standard ReLU is used in early layers, and \methodname is applied only at the final feature layer (before the global average pooling). This approach aims to preserve feature extraction while introducing stochastic competition at the decision-making stage.
+    \item {\bf Scaled \textsc{SSA}}: Since the softmax outputs sum to 1.0, the average activation value is significantly reduced compared to ReLU. In \textsc{SSA-Scaled}, we multiply the output by the number of channels $C$ to maintain the original activation magnitude.
+\end{itemize}
+
+\para{Experimental Setup}
+We use VGG-11 \cite{vgg2014} as our base architecture and CIFAR-10 \cite{cifar10} as our benchmark dataset. All models are trained for 10 epochs using SGD with a learning rate of 0.01, momentum of 0.9, and a cosine annealing scheduler. We use 4x NVIDIA RTX A6000 GPUs for all experiments. The temperature $\tau$ is fixed at 1.0 for all \methodname modules.

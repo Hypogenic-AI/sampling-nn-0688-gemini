@@ -1,0 +1,13 @@
+\section{Discussion}
+
+\para{Interpretability and Competitive Bottlenecks}
+The core mechanism of \methodname is categorical competition. Unlike ReLU, which allows multiple independent features to be active simultaneously, \methodname forces neurons to "compete" for a fixed amount of activation probability (summing to 1.0). Our results suggest that this "winner-take-all" behavior acts as an information bottleneck. While this can serve as a powerful regularizer by forcing the network to focus on the most salient features, it also restricts the model's total representational capacity. In tasks like image classification, where multiple hierarchical features often co-exist, the strict competition of \methodname might be overly restrictive.
+
+\para{Signal Propagation in Stochastic Networks}
+The "vanishing signal" problem we observed in deep \textsc{SSA} stacks highlights a fundamental challenge in designing stochastic primitives. Monotonic activations like ReLU are designed to preserve signal magnitude and gradient flow across many layers. In contrast, softmax-based activations are inherently contractive. For \methodname to be used more broadly, specialized initialization schemes or residual connections (e.g., $y = \text{ReLU}(x) + \textsc{SSA}(x)$) may be necessary to ensure that the signal can penetrate deep architectures without decaying.
+
+\para{Soft vs. Hard Sampling}
+The dramatic performance gap between "soft" relaxation and "hard" sampling in our experiments underscores the difficulty of training with discrete categorical choices. Even with the Straight-Through Estimator, the variance of the gradients in a high-dimensional categorical space seems to be too high for standard optimizers to handle during the early stages of training. This suggests that "annealing" strategies—where the temperature $\tau$ starts high (soft) and gradually decreases (hard)—might be essential for unlocking the potential of discrete sampling activations.
+
+\para{Limitations}
+Our study was limited by a relatively short training duration (10 epochs) and a focus on a single architecture (VGG-11). It is possible that with longer training or more modern architectures like ResNet, pure \textsc{SSA} stacks might show better convergence. Additionally, we did not perform a hyperparameter search over the temperature $\tau$, which likely plays a critical role in balancing competition and gradient flow.

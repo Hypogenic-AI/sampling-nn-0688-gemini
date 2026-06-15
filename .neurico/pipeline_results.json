@@ -1,0 +1,27 @@
+{
+  "success": true,
+  "stages": {
+    "resource_finder": {
+      "success": true,
+      "completion_marker": "/workspaces/sampling-nn-0688-gemini/.resource_finder_complete",
+      "outputs": {
+        "literature_review": "/workspaces/sampling-nn-0688-gemini/literature_review.md",
+        "resources_catalog": "/workspaces/sampling-nn-0688-gemini/resources.md",
+        "papers_dir": "/workspaces/sampling-nn-0688-gemini/papers",
+        "datasets_dir": "/workspaces/sampling-nn-0688-gemini/datasets",
+        "code_dir": "/workspaces/sampling-nn-0688-gemini/code"
+      },
+      "log_file": "/workspaces/sampling-nn-0688-gemini/logs/resource_finder_gemini.log",
+      "transcript_file": "/workspaces/sampling-nn-0688-gemini/logs/resource_finder_gemini_transcript.jsonl",
+      "elapsed_time": 949.0788023471832
+    },
+    "experiment_runner": {
+      "success": true,
+      "return_code": 0,
+      "elapsed_time": 3152.6687111854553,
+      "log_file": "/workspaces/sampling-nn-0688-gemini/logs/execution_gemini.log",
+      "transcript_file": "/workspaces/sampling-nn-0688-gemini/logs/execution_gemini_transcript.jsonl"
+    }
+  },
+  "work_dir": "/workspaces/sampling-nn-0688-gemini"
+}

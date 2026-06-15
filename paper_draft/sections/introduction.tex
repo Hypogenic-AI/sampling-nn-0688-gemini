@@ -1,0 +1,17 @@
+\section{Introduction}
+
+{\bf Why do we use deterministic activations?} Most deep learning architectures rely on fixed, deterministic non-linearities such as ReLU or Swish to build hierarchical representations. While these functions are computationally efficient and enable gradient flow, they do not inherently capture the uncertainty or competition that might be beneficial during feature extraction. In contrast, the final layer of a classification network often uses a softmax distribution to represent a probability distribution over classes, effectively forcing a competition between mutually exclusive outcomes.
+
+The introduction of stochasticity into neural networks has traditionally focused on regularization (e.g., Dropout \cite{dropout2014}) or modeling weight uncertainty (e.g., Bayesian Neural Networks). More recently, noise-based activations like \textsc{ProbAct} \cite{probact2019} have shown that sampling from a continuous distribution at the neuron level can improve generalization. However, there is a significant gap in exploring {\bf categorical sampling} as an intermediate primitive. Specifically, what happens if we treat an intermediate layer's activations as logits and sample a subset of "active" neurons according to their relative importance?
+
+In this paper, we propose \methodname (\textsc{SSA}), a novel activation module that introduces categorical competition at intermediate layers. \methodname treats the pre-activations as logits, applies a softmax to generate a probability distribution, and samples according to this distribution to produce the layer output. To ensure differentiability, we employ the Gumbel-Softmax reparameterization trick \cite{gumbel1998}, allowing the network to learn through the sampling process.
+
+Our results on CIFAR-10 with a VGG-11 architecture demonstrate both the promise and the pitfalls of this approach. While naive application of \methodname at every layer causes the signal to vanish exponentially, leading to 10.21\% accuracy, a hybrid approach applying \methodname only at the final feature layer achieves a respectable 83.09\% accuracy. This is slightly below the 86.46\% baseline set by ReLU, highlighting a fundamental trade-off between the flexibility of independent activations and the bottleneck of categorical competition.
+
+Our main contributions are as follows:
+\begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+    \item We propose \methodname (\textsc{SSA}), a differentiable categorical sampling module for intermediate neural network layers.
+    \item We identify the "vanishing signal" problem inherent in deep \textsc{SSA} stacks and provide an empirical characterization of its impact on convergence.
+    \item We conduct a comparative study between "soft" relaxation and "hard" discrete sampling, demonstrating that continuous relaxation is essential for stabilizing the training of competitive activations.
+    \item We analyze the information bottleneck created by \methodname, suggesting that while it acts as a strong regularizer, it can also restrict the model's representational capacity compared to standard monotonic activations.
+\end{itemize}

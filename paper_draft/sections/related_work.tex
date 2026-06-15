@@ -1,0 +1,10 @@
+\section{Related Work}
+
+\para{Stochastic Activation Functions}
+The most relevant precursor to our work is \textsc{ProbAct} \cite{probact2019}, which introduces a probabilistic activation function by sampling from a normal distribution centered at a ReLU-like mean. Unlike \textsc{ProbAct}, which treats neurons independently, \methodname introduces a dependencies between neurons via a softmax-based categorical distribution. Other approaches like Noisy Activation Functions \cite{noisyact2016} inject noise specifically in saturated regimes to aid exploration. Our work differs by making the stochasticity the central mechanism of the activation itself, rather than an additive noise component.
+
+\para{Differentiable Categorical Selection}
+Our methodology relies heavily on the Gumbel-Softmax trick \cite{gumbel1998} and the Straight-Through Estimator \cite{straightthrough2013}. These techniques have been used for discrete choice modeling and categorical reparameterization in various contexts, such as Variational Autoencoders. In the domain of activation functions, \textsc{Flex-Act} \cite{flexact2026} uses Gumbel-Softmax to allow layers to pick from a discrete set of existing activation functions (e.g., picking between ReLU and Tanh). In contrast, we use these tools to perform sampling over the {\it feature space} within a single layer, rather than selecting the functional form of the layer itself.
+
+\para{Competitive and Sparse Representations}
+The idea of competition between neurons has roots in lateral inhibition and "winner-take-all" mechanisms. Softmax is a standard way to implement a soft version of this competition, typically reserved for the final output. By moving this competition to intermediate layers, we relate to works on sparse coding and attention mechanisms. However, \methodname is unique in its probabilistic nature and its use as a primitive replacement for standard monotonic activations. Randomized Automatic Differentiation \cite{rad2020} also explores stochasticity in the backward pass, providing a theoretical foundation for training networks with the high-variance gradients that often accompany sampling-based approaches.

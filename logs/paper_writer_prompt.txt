@@ -1,0 +1,452 @@
+You are an academic paper writer. Generate a complete NEURIPS style paper
+based on the experiment results provided.
+
+════════════════════════════════════════════════════════════════════════════════
+                         IMPORTANT: BEFORE YOU START
+════════════════════════════════════════════════════════════════════════════════
+
+Before writing any content, you MUST complete these steps:
+
+1. READ THE SKILL: Review the paper-writer skill at .gemini/skills/paper-writer/SKILL.md
+2. READ THE STYLE GUIDE: Study templates/paper_writing/lab_style_guide.md carefully
+3. REVIEW EXAMPLES: Browse paper_examples/ for formatting and language patterns:
+   - Look at sections/1.introduction.tex for language style
+   - Look at tables/*.tex for table formatting
+   - Look at commands/*.tex for macro usage
+4. VERIFY COMMAND TEMPLATES: Command templates (math.tex, general.tex, macros.tex) are pre-copied to paper_draft/commands/
+
+CRITICAL: Reference example papers for FORMATTING and LANGUAGE STYLE only.
+Do NOT copy content, phrasing, or narrative structure from the example papers.
+The examples are in a different research domain - focus only on presentation style.
+
+════════════════════════════════════════════════════════════════════════════════
+                            EXPERIMENT REPORT
+════════════════════════════════════════════════════════════════════════════════
+
+# Research Report: Sampling Neural Network
+
+## 1. Executive Summary
+This research investigated the introduction of categorical sampling at intermediate layers of neural networks, a technique we call "Softmax Sampling Activation" (SSA). Inspired by the final softmax layer used for class prediction, SSA treats intermediate activations as logits and samples a neuron to pass forward according to its relative probability. Our experiments on CIFAR-10 show that while deep networks with SSA at every layer are unstable and fail to converge, networks with SSA applied selectively in the final feature layer can train effectively when using differentiable reparameterization (Gumbel-Softmax). However, SSA generally results in lower accuracy compared to standard ReLU, suggesting that the competitive nature of categorical sampling is better suited for decision-making than for feature extraction.
+
+## 2. Research Question & Motivation
+The primary research question was: **"What happens if we take the distribution of activations at an intermediate layer and sample from it, similar to the final softmax layer?"**
+
+Stochasticity in neural networks is often used for regularization (Dropout) or uncertainty estimation (Bayesian Neural Networks). This research explored a specific form of stochasticity: **categorical sampling over the feature space**. This approach forces the network to focus on a subset of salient features, potentially acting as a strong regularizer or an attention-like mechanism.
+
+## 3. Methodology
+We implemented a custom Softmax Sampling Activation (SSA) module using the Gumbel-Softmax trick to enable backpropagation through categorical samples.
+
+### Baselines
+- **Standard VGG-11 with ReLU**: Primary deterministic baseline.
+
+### Experimental Variants
+- **SSA (Soft)**: Uses the continuous softmax relaxation from Gumbel-Softmax ($\tau=1.0$).
+- **SSA (Hard)**: Uses a discrete one-hot sample during the forward pass (Straight-Through Estimator).
+- **SSA (Scaled)**: Multiplies output by the number of channels to maintain activation magnitude.
+- **Mixed VGG**: Uses standard ReLU in early layers and SSA only in the final feature layer (layer 8).
+
+### Environment
+- **Hardware**: 4x NVIDIA RTX A6000 GPUs.
+- **Dataset**: CIFAR-10 (standard 50k train / 10k test split).
+- **Training**: 10 epochs, SGD optimizer (LR=0.01, Momentum=0.9), Cosine Annealing scheduler.
+
+## 4. Results
+
+| Method | Test Accuracy (Top-1) | ECE (Uncertainty) | Status |
+|--------|-----------------------|-------------------|--------|
+| **ReLU Baseline** | **86.46%** | 0.0236 | Success |
+| SSA (All Layers, Soft) | 10.21% | 0.0053 | Failed |
+| SSA (All Layers, Hard) | 14.23% | 0.0041 | Failed |
+| **SSA (Last Layer, Soft)** | **83.09%** | 0.0323 | Success |
+| SSA (Last Layer, Hard) | 10.38% | 0.0713 | Failed |
+
+![Accuracy Comparison](figures/test_accuracy.png)
+
+## 5. Analysis & Discussion
+
+### The "Vanishing Signal" Problem
+One of the most critical findings was that naive Softmax activations at every layer cause the signal to vanish exponentially. Because Softmax outputs sum to 1.0, the average activation value is scaled down by a factor of $C$ (the number of channels). In a deep network like VGG-11, this attenuation ($1/C^L$) effectively zeroed out all gradients, preventing any learning.
+
+### "Soft" vs. "Hard" Sampling
+There is a dramatic difference between soft and hard sampling. In the "Mixed VGG" case, the **Soft SSA** converged to a respectable 83.09% accuracy. In contrast, the **Hard SSA** (which picks exactly one channel to keep) failed to train, sticking at ~10%. This indicates that the gradient variance introduced by hard sampling is too high for the network to handle, especially when the initial distribution is near-uniform.
+
+### Competitive Bottleneck
+Even when SSA worked (Mixed VGG), it performed worse than the ReLU baseline (83.09% vs 86.46%). This suggests that forcing neurons to "compete" via a softmax distribution is counter-productive for feature representation. ReLU allows multiple independent features to be active simultaneously, which is essential for representing complex hierarchical data. SSA's "winner-take-all" behavior acts as an information bottleneck that restricts the model's capacity.
+
+## 6. Limitations
+- **Epoch Count**: Due to time constraints, models were trained for only 10 epochs. Longer training might have allowed pure SSA models to show some progress.
+- **Hyperparameters**: We did not perform an extensive search over temperatures ($\tau$) or learning rates.
+- **Initialization**: Standard initialization (He/Kaiming) is designed for ReLU. SSA likely requires a specialized initialization to handle its specific distribution.
+
+## 7. Conclusions & Next Steps
+Introducing categorical sampling from intermediate activations is a viable but challenging technique. While it provides a natural form of stochasticity, its competitive nature and scaling issues make it difficult to use as a general-purpose activation function. 
+
+**Recommended Next Steps:**
+1. **Temperature Annealing**: Start with high $\tau$ (uniform) and gradually decrease to low $\tau$ (sparse) to stabilize early training.
+2. **Residual SSA**: Use SSA as an additive noise component ($y = \text{ReLU}(x) + \text{SSA}(x)$) instead of a direct replacement.
+3. **Sparse Attention**: Investigate if SSA is more effective as a spatial attention mechanism rather than a channel-wise activation.
+
+
+════════════════════════════════════════════════════════════════════════════════
+                            RESEARCH PLAN
+════════════════════════════════════════════════════════════════════════════════
+
+# Research Plan: Sampling Neural Network
+
+## Motivation & Novelty Assessment
+
+### Why This Research Matters
+Most modern neural networks rely on deterministic activation functions like ReLU. While effective, they lack inherent uncertainty quantification and can be prone to overfitting. Introducing stochasticity at intermediate layers can serve as a powerful regularizer and provide a natural way for the network to express uncertainty, similar to how the final softmax layer represents class probabilities.
+
+### Gap in Existing Work
+Existing stochastic methods often add noise (like ProbAct: $f(x) = \mu(x) + \epsilon$) or drop neurons (Dropout). The specific idea of treating an intermediate layer's activations as a probability distribution and *sampling* an activation according to that distribution (akin to the final softmax layer) is less commonly used as a primitive activation function. This approach forces the network to focus on the most "salient" features in a stochastic manner.
+
+### Our Novel Contribution
+We propose the "Softmax Sampling Activation" (SSA). Instead of simply applying a non-linearity, we treat the layer's activations as logits, apply a softmax to generate a probability distribution over the neurons, and sample one (or a few) neurons to pass forward. We will use the Gumbel-Softmax reparameterization trick to make this process differentiable.
+
+### Experiment Justification
+- **Experiment 1: Feasibility and Baseline Comparison**: Can a network with SSA layers even converge? We compare SSA against standard ReLU on CIFAR-10.
+- **Experiment 2: Temperature Sensitivity**: The Gumbel-Softmax temperature $\tau$ controls the "hardness" of the sampling. We will investigate how $\tau$ affects convergence and final performance.
+- **Experiment 3: Comparison with Other Stochasticity**: We will compare SSA with Dropout and ProbAct to see if categorical sampling provides unique benefits in terms of regularization or accuracy.
+
+## Research Question
+Does introducing categorical sampling from intermediate layer activations (Softmax Sampling Activation) improve generalization, robustness, or uncertainty calibration compared to deterministic activations and other stochastic methods?
+
+## Hypothesis Decomposition
+1. **Convergence**: Networks with SSA layers can be trained effectively using Gumbel-Softmax.
+2. **Regularization**: SSA will provide a stronger regularization effect than ReLU, reducing the gap between training and validation accuracy.
+3. **Efficiency**: SSA might lead to sparser activations, potentially improving computational efficiency if implemented with hard sampling.
+
+## Proposed Methodology
+
+### Approach
+We will implement a custom PyTorch module for Softmax Sampling Activation.
+$y = \text{Gumbel-Softmax}(x, \tau, \text{hard}=\text{False}) \cdot x$
+We will integrate this into a standard VGG or ResNet architecture.
+
+### Experimental Steps
+1. **Baseline Implementation**: Train a VGG-16 model with ReLU on CIFAR-10.
+2. **SSA Implementation**: Implement the SSA layer and integrate it into VGG-16.
+3. **Training & Evaluation**: Train SSA-VGG with various temperatures.
+4. **Analysis**: Evaluate Top-1 accuracy and calibration (ECE).
+
+### Baselines
+- **Standard ReLU**: The primary deterministic baseline.
+- **Dropout (0.5)**: The standard stochastic regularization baseline.
+- **ProbAct**: A representative noise-based stochastic activation.
+
+### Evaluation Metrics
+- **Top-1 Accuracy**: Standard performance metric.
+- **Training vs. Validation Accuracy**: To measure regularization effect.
+- **Expected Calibration Error (ECE)**: To measure uncertainty quantification.
+
+## Expected Outcomes
+- SSA might perform slightly worse than ReLU on training but better on test (regularization).
+- Very low temperatures (harder sampling) might make training unstable.
+- SSA might show better calibration than ReLU.
+
+## Timeline
+- Phase 1: Planning (Complete)
+- Phase 2: Setup (10 min)
+- Phase 3: Implementation (30 min)
+- Phase 4: Experimentation (60 min)
+- Phase 5: Analysis (20 min)
+- Phase 6: Documentation (20 min)
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          LITERATURE REVIEW
+════════════════════════════════════════════════════════════════════════════════
+
+# Literature Review: Sampling Neural Network
+
+## Research Area Overview
+The research focuses on introducing stochasticity at intermediate layers of neural networks through sampling from the distribution of activations. This is a move away from deterministic activation functions (like ReLU, Sigmoid) towards probabilistic ones, aiming to improve generalization, provide uncertainty estimates, and potentially uncover new insights into neural representational associations.
+
+## Key Papers
+
+### Paper 1: ProbAct: A Probabilistic Activation Function for Deep Neural Networks (2019)
+- **Authors**: Kumar Shridhar, Joonho Lee, Hideaki Hayashi, et al.
+- **Key Contribution**: Proposes ProbAct, a stochastic activation function that samples from a normal distribution $\mathcal{N}(\mu(x), \sigma^2)$.
+- **Methodology**: $\mu(x)$ is typically initialized as ReLU. $\sigma$ can be fixed or trained via backpropagation.
+- **Datasets Used**: CIFAR-10, CIFAR-100, STL-10, IMDb.
+- **Results**: Accuracy improvements of 2-3% on image tasks; provides inherent ensemble properties and uncertainty estimates.
+- **Code Available**: [GitHub](https://github.com/kumar-shridhar/ProbAct-Probabilistic-Activation-Function)
+- **Relevance**: Directly implements the hypothesis of sampling from intermediate activations.
+
+### Paper 2: Flex-Act: Why Learn when you can Pick? (2026)
+- **Authors**: Ramnath Kumar, Kyle Ritscher, et al.
+- **Key Contribution**: Introduces a framework for discrete activation selection using the Gumbel-Softmax trick.
+- **Methodology**: Layers choose from a basis set of activations (ReLU, Tanh, etc.) during training.
+- **Relevance**: Another form of sampling/selection at the intermediate layer level, focused on functional diversity.
+
+### Paper 3: Noisy Activation Functions (2016)
+- **Authors**: Caglar Gulcehre, Marcin Moczulski, Misha Denil, Yoshua Bengio.
+- **Key Contribution**: Injects noise into saturated regimes of activation functions.
+- **Relevance**: Shows how stochasticity can help explore the boundary between degenerate and well-behaved parts of the activation function.
+
+### Paper 4: Randomized Automatic Differentiation (2020)
+- **Authors**: Deniz Oktay, Nick McGreivy, et al.
+- **Relevance**: Provides a framework for unbiased stochastic gradients through randomized path sampling, relevant for training stochastic networks efficiently.
+
+## Common Methodologies
+- **Reparameterization Trick**: Used to make stochastic sampling differentiable (e.g., in VAEs and ProbAct).
+- **Gumbel-Softmax**: Used for differentiable discrete selection (FlexAct).
+- **Trainable Variance**: Learning the amount of noise needed per layer or neuron.
+
+## Standard Baselines
+- **Deterministic ReLU**: The standard against which stochastic activations are compared.
+- **Dropout**: A related stochastic regularization technique.
+- **Bayesian Neural Networks**: A more complex approach to uncertainty quantification.
+
+## Evaluation Metrics
+- **Top-1 Accuracy**: Standard classification performance.
+- **Expected Calibration Error (ECE)**: Measures how well uncertainty estimates match actual error rates.
+- **Robustness to Noisy Inputs**: Measuring performance under perturbations.
+
+## Recommendations for Our Experiment
+1. **Primary Dataset**: CIFAR-10 (standard, well-understood).
+2. **Baseline Methods**: Standard ReLU-based CNN/ResNet.
+3. **Primary Method to Implement**: A custom implementation of ProbAct or a variation that samples from a softmax distribution over neurons (as suggested by the "similar to sampling from the final softmax layer" part of the hypothesis).
+4. **Evaluation**: Focus on both accuracy improvements and uncertainty calibration.
+
+
+════════════════════════════════════════════════════════════════════════════════
+                          PAPER REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+Generate a complete academic paper with the following structure:
+
+1. TITLE
+   - Clear, specific, informative
+   - Should convey main finding or contribution
+
+2. AUTHOR
+   - Use this exact author line in the \author{} block: Ari Holtzman and NeuriCo
+
+3. ABSTRACT (150-250 words)
+   - Problem statement
+   - Approach
+   - Key results
+   - Significance
+
+4. INTRODUCTION
+   - Research problem and motivation
+   - Gap in existing work
+   - Our contribution (be specific)
+   - Paper organization
+
+5. RELATED WORK
+   - Organized by theme/approach
+   - Position our work relative to prior work
+   - Cite papers from literature review
+
+6. METHODOLOGY
+   - Clear description of approach
+   - Experimental setup
+   - Datasets used
+   - Evaluation metrics
+   - Baselines
+
+7. RESULTS
+   - Present results with tables and figures
+   - Statistical analysis
+   - Comparison to baselines
+   - Ablation studies (if applicable)
+
+8. DISCUSSION
+   - Interpretation of results
+   - Limitations
+   - Broader implications
+
+9. CONCLUSION
+   - Summary of contributions
+   - Key findings
+   - Future work
+
+10. REFERENCES
+   - BibTeX format
+   - All cited papers
+
+════════════════════════════════════════════════════════════════════════════════
+                          OUTPUT FORMAT
+════════════════════════════════════════════════════════════════════════════════
+
+Create a MODULAR LaTeX project with the following directory structure:
+
+paper_draft/
+├── main.tex              # Main file that imports all sections
+├── references.bib        # BibTeX references
+├── sections/
+│   ├── abstract.tex      # Abstract content
+│   ├── introduction.tex  # Introduction section
+│   ├── related_work.tex  # Related work section
+│   ├── methodology.tex   # Methodology section
+│   ├── results.tex       # Results section
+│   ├── discussion.tex    # Discussion section
+│   └── conclusion.tex    # Conclusion section
+├── figures/              # Directory for any generated figures
+├── tables/               # Directory for complex standalone tables
+└── appendix/             # Directory for appendix sections (if needed)
+
+INSTRUCTIONS:
+1. First, create the directory structure above (mkdir -p paper_draft/sections paper_draft/figures paper_draft/tables paper_draft/appendix)
+2. Write main.tex using the EXACT preamble for NEURIPS:
+
+   \documentclass{article}
+   \usepackage[final]{neurips_2025}  % NEURIPS style (neurips_2025.sty is in paper_draft/)
+   \usepackage[hidelinks]{hyperref}  % REQUIRED: clickable links
+   \usepackage{booktabs}  % REQUIRED: professional tables
+   \usepackage{graphicx}
+   \usepackage{amsmath,amssymb}
+
+   % Import command files
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+   % Use this bibliography style:
+   \bibliographystyle{plainnat}
+
+   \author{Ari Holtzman and NeuriCo}
+
+   - Use \input{sections/...} to include each section
+   - Use \bibliography{references} for references
+3. Write each section file with COMPLETE content (no placeholders)
+4. Each section file should include its \section{} command
+5. Write references.bib with all citations in BibTeX format
+6. After writing all files, compile the paper:
+   cd paper_draft && pdflatex -interaction=nonstopmode main.tex && bibtex main && pdflatex -interaction=nonstopmode main.tex && pdflatex -interaction=nonstopmode main.tex
+
+This modular structure allows humans to easily:
+- Edit individual sections without navigating a large file
+- Track changes per section
+- Reuse sections across different paper versions
+
+════════════════════════════════════════════════════════════════════════════════
+                          QUALITY REQUIREMENTS
+════════════════════════════════════════════════════════════════════════════════
+
+- Academic tone throughout
+- All claims must be supported by data from the experiment report
+- Proper citations using \cite{} commands
+- Clear figures and tables with proper captions
+- NO placeholder text - every section must have real content
+- The paper MUST compile without errors
+- If compilation fails, debug and fix the LaTeX errors
+
+════════════════════════════════════════════════════════════════════════════════
+                          LAB WRITING STYLE
+════════════════════════════════════════════════════════════════════════════════
+
+Follow these lab-specific conventions to match our paper style:
+
+1. LANGUAGE STYLE:
+   - Use active voice: "We propose", "We examine", "We focus on"
+   - Be direct and confident: "Our main question is...", "We hypothesize that..."
+   - State things clearly and simply - prefer plain language over jargon
+   - Use bold questions as paragraph organizers: {\bf what is X?}
+   - Include specific quantitative claims: "8.97% over baseline"
+   - Avoid fancy wording: "utilize" → "use", "facilitate" → "help"
+
+2. INTRODUCTION STRUCTURE:
+   - Engaging hook (get to the point quickly)
+   - Problem importance
+   - Gap identification
+   - Your approach with method figure reference
+   - Quantitative preview of results
+   - Contribution bullets (3-4 items, action verbs)
+
+3. CONTRIBUTION LISTS:
+   \begin{itemize}[leftmargin=*,itemsep=0pt,topsep=0pt]
+       \item We propose...
+       \item We conduct...
+       \item We complement...
+   \end{itemize}
+
+4. MODULAR COMMANDS STRUCTURE:
+   Command templates are pre-copied to paper_draft/commands/:
+   - math.tex: Math notation macros
+   - general.tex: Formatting macros
+   - macros.tex: Project-specific term definitions (customize this for your paper)
+
+   In main.tex, include:
+   \input{commands/math}
+   \input{commands/general}
+   \input{commands/macros}
+
+5. REFERENCE CONVENTIONS:
+   Use reference macros from math.tex:
+   - \figref{fig:name} for "figure 1" (lowercase, in-sentence)
+   - \Figref{fig:name} for "Figure 1" (capitalized, start of sentence)
+   - \secref{sec:name} for "section 2"
+
+6. TEXT FORMATTING:
+   - Use \para{Header text} for bold paragraph headers
+   - Define method/dataset names with \textsc and \xspace:
+     \newcommand{\methodname}{\textsc{MethodName}\xspace}
+
+7. TABLE FORMATTING:
+   - Use booktabs package (no vertical lines)
+   - Use \resizebox{\textwidth}{!}{...} for wide tables
+   - Use @{} to remove padding at table edges
+   - Use \cmidrule(lr){x-y} for sub-headers
+   - Use \textsc{} for dataset/method names in headers
+   - Bold best results with {\bf ...}
+
+8. FIGURE FORMATTING:
+   - Use 0.32\textwidth for 3-column subfigures
+   - Use 0.95\linewidth for full-width figures
+   - Use \input{figures/legend} for shared legends
+   - Write self-contained captions explaining key observations
+
+9. RESULTS PRESENTATION:
+   - Define \increase and \decrease for colored arrows (green up, red down)
+   - Bold best results in tables
+   - Report confidence intervals when available
+
+10. ALGORITHM STYLING:
+    - Use algpseudocode with [noend]
+    - Use \triangleright for comments
+
+11. HYPERLINKS (REQUIRED):
+    - Always use \usepackage[hidelinks]{hyperref} or with colored links
+    - All citations, section refs, figure refs, table refs must be clickable
+    - This is essential for reader navigation
+
+════════════════════════════════════════════════════════════════════════════════
+                          WORKFLOW: REVIEW AND REFLECT
+════════════════════════════════════════════════════════════════════════════════
+
+Before calling finish, you MUST complete these review steps:
+
+1. REVIEW RESOURCES (at the start):
+   - Read .gemini/skills/paper-writer/SKILL.md for detailed guidance
+   - Study templates/paper_writing/lab_style_guide.md for style conventions
+   - Browse paper_examples/ for formatting and language patterns
+
+2. SELF-REFLECTION (before finishing):
+   After writing all sections, review your work against these criteria:
+
+   LANGUAGE CHECK:
+   - [ ] Is the writing clear and jargon-free?
+   - [ ] Are claims specific with quantitative support?
+   - [ ] Is active voice used throughout?
+
+   FORMATTING CHECK:
+   - [ ] Does main.tex include \input{commands/math}, \input{commands/general}, \input{commands/macros}?
+   - [ ] Is hyperref package included for clickable references?
+   - [ ] Do tables use booktabs (no vertical lines)?
+   - [ ] Are best results bolded in tables?
+   - [ ] Are figures/tables properly captioned?
+
+   STRUCTURE CHECK:
+   - [ ] Does introduction follow: hook → importance → gap → approach → preview → contributions?
+   - [ ] Are contribution bullets specific with action verbs?
+   - [ ] Does the paper compile without errors?
+
+3. FIX ISSUES:
+   - Address any issues found in the self-reflection
+   - Re-compile and verify the PDF looks correct
+
+Only after completing this review should you consider the paper finished.
